@@ -34,6 +34,12 @@ collect:
 backtest:
 	cd src && python backtester.py
 
+# Fetch historical data and backtest (e.g., make historical DAYS=30 INTERVAL=1h)
+DAYS ?= 7
+INTERVAL ?= 1h
+historical:
+	cd src && python fetch_historical.py $(DAYS) $(INTERVAL)
+
 # Demo the trading strategies
 strategies:
 	cd src && python strategies.py
