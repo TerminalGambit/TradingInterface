@@ -44,6 +44,14 @@ historical:
 strategies:
 	cd src && python strategies.py
 
+# Train ML model for price prediction
+ml-train:
+	cd src && python ml_model.py
+
+# Backtest ML strategy vs rule-based
+ml-backtest:
+	cd src && python ml_strategy.py
+
 # Clean Python cache files
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

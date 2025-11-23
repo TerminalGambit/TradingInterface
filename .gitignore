@@ -8,6 +8,10 @@ btc_prices.json
 src/portfolio_state.json
 portfolio_state.json
 
+# ML models (trained locally)
+src/models/
+models/
+
 # Python
 __pycache__/
 *.py[cod]

@@ -574,7 +574,8 @@ def print_backtest_report(result: BacktestResult, strategy_name: str = "Signal-B
         for trade in result.trades[-5:]:
             symbol = "🟢" if trade.pnl > 0 else "🔴"
             print(f"  {symbol} {trade.entry_time[:19]} -> {trade.exit_time[:19] if trade.exit_time else 'OPEN'}")
-            print(f"     Entry: ${trade.entry_price:,.2f} | Exit: ${trade.exit_price:,.2f if trade.exit_price else 0:,.2f} | P&L: ${trade.pnl:,.2f} ({trade.pnl_pct:+.2f}%)")
+            exit_price = trade.exit_price if trade.exit_price else 0
+            print(f"     Entry: ${trade.entry_price:,.2f} | Exit: ${exit_price:,.2f} | P&L: ${trade.pnl:,.2f} ({trade.pnl_pct:+.2f}%)")
 
     print("\n" + "=" * 60)
 
