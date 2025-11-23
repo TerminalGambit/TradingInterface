@@ -276,9 +276,9 @@ class GridStrategy(Strategy):
     Good for ranging/sideways markets.
     """
 
-    def __init__(self, grid_size_pct: float = 1.0, num_grids: int = 5):
+    def __init__(self, grid_size_pct: float = 0.1, num_grids: int = 5):
         super().__init__("Grid Trading")
-        self.grid_size_pct = grid_size_pct  # % between grid levels
+        self.grid_size_pct = grid_size_pct  # % between grid levels (0.1% = ~$88 for BTC)
         self.num_grids = num_grids
         self.last_grid_level = None
 

@@ -69,7 +69,7 @@ class Backtester:
         self.commission = commission
 
     def run(self, prices: np.ndarray, signals: np.ndarray,
-            timestamps: List[str] = None) -> BacktestResult:
+            timestamps: List[str] = None, allow_short: bool = True) -> BacktestResult:
         """
         Run backtest on price data with given signals.
 
@@ -77,6 +77,7 @@ class Backtester:
             prices: Array of close prices
             signals: Array of signals (1=buy, -1=sell, 0=hold)
             timestamps: Optional list of timestamps
+            allow_short: Allow short selling (SELL first, BUY to cover)
 
         Returns:
             BacktestResult with performance metrics
@@ -85,9 +86,10 @@ class Backtester:
             timestamps = [str(i) for i in range(len(prices))]
 
         capital = self.initial_capital
-        position = 0.0  # BTC held
+        position = 0.0  # BTC held (negative = short)
         entry_price = 0.0
         entry_time = ""
+        position_side = None  # "long" or "short"
 
         trades: List[Trade] = []
         equity_curve = [capital]
@@ -96,8 +98,12 @@ class Backtester:
             price = prices[i]
             signal = signals[i]
 
-            # Calculate current equity
-            current_equity = capital + (position * price)
+            # Calculate current equity (for shorts: profit when price drops)
+            if position_side == "short":
+                unrealized_pnl = (entry_price - price) * abs(position)
+                current_equity = capital + unrealized_pnl
+            else:
+                current_equity = capital + (position * price)
 
             # Process signals
             if signal == 1 and position == 0:  # BUY signal, no position
@@ -108,8 +114,9 @@ class Backtester:
                 capital -= trade_capital
                 entry_price = price
                 entry_time = timestamps[i]
+                position_side = "long"
 
-            elif signal == -1 and position > 0:  # SELL signal, have position
+            elif signal == -1 and position > 0:  # SELL signal, have long position
                 # Close long position
                 sale_value = position * price
                 commission_cost = sale_value * self.commission
@@ -132,12 +139,52 @@ class Backtester:
 
                 position = 0.0
                 entry_price = 0.0
+                position_side = None
+
+            elif signal == -1 and position == 0 and allow_short:  # SELL signal, no position -> short
+                # Open short position
+                trade_capital = capital * self.position_size
+                commission_cost = trade_capital * self.commission
+                position = -((trade_capital - commission_cost) / price)  # Negative for short
+                entry_price = price
+                entry_time = timestamps[i]
+                position_side = "short"
+
+            elif signal == 1 and position < 0:  # BUY signal, have short position -> cover
+                # Close short position (buy to cover)
+                cover_cost = abs(position) * price
+                commission_cost = cover_cost * self.commission
+
+                # Short profit = (entry - exit) * size
+                pnl = (entry_price - price) * abs(position) - (commission_cost * 2)
+                pnl_pct = ((entry_price / price) - 1) * 100
+
+                capital += pnl  # Add/subtract P&L (we didn't actually spend capital on short)
+
+                trades.append(Trade(
+                    entry_time=entry_time,
+                    entry_price=entry_price,
+                    exit_time=timestamps[i],
+                    exit_price=price,
+                    side="short",
+                    size=abs(position),
+                    pnl=pnl,
+                    pnl_pct=pnl_pct
+                ))
+
+                position = 0.0
+                entry_price = 0.0
+                position_side = None
 
             # Update equity curve
-            equity_curve.append(capital + (position * price))
+            if position_side == "short":
+                unrealized_pnl = (entry_price - price) * abs(position)
+                equity_curve.append(capital + unrealized_pnl)
+            else:
+                equity_curve.append(capital + (position * price))
 
         # Close any open position at the end
-        if position > 0:
+        if position > 0:  # Close long
             final_price = prices[-1]
             sale_value = position * final_price
             commission_cost = sale_value * self.commission
@@ -153,6 +200,27 @@ class Backtester:
                 exit_price=final_price,
                 side="long",
                 size=position,
+                pnl=pnl,
+                pnl_pct=pnl_pct
+            ))
+
+        elif position < 0:  # Close short
+            final_price = prices[-1]
+            cover_cost = abs(position) * final_price
+            commission_cost = cover_cost * self.commission
+
+            pnl = (entry_price - final_price) * abs(position) - (commission_cost * 2)
+            pnl_pct = ((entry_price / final_price) - 1) * 100
+
+            capital += pnl
+
+            trades.append(Trade(
+                entry_time=entry_time,
+                entry_price=entry_price,
+                exit_time=timestamps[-1],
+                exit_price=final_price,
+                side="short",
+                size=abs(position),
                 pnl=pnl,
                 pnl_pct=pnl_pct
             ))
